@@ -30,6 +30,8 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter {
             ByteBuf byteBuf = (ByteBuf) msg;
             byte[] respByte = new byte[byteBuf.readableBytes()];
             String msgStr = new String(respByte, StandardCharsets.UTF_8);
+            //todo
+            System.out.println(msgStr);
         } finally {
             ReferenceCountUtil.release(msg);
         }
@@ -48,5 +50,10 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter {
         log.info("The connection of: " + channel.localAddress()
                 + " -> " + channel.remoteAddress() + " is disconnected.");
         nettyClient.doConnect();
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        ctx.close();
     }
 }

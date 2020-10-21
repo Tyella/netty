@@ -1,16 +1,23 @@
 package com.tyella.netty.client;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.string.StringDecoder;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.util.concurrent.TimeUnit;
 
 @Component
-public class NettyClient {
+public class NettyClient implements ApplicationContextAware {
 
     private Bootstrap bootstrap;
 
@@ -18,7 +25,14 @@ public class NettyClient {
 
     private volatile Channel channel;
 
+    private ApplicationContext applicationContext;
+
     private static final long NEXT_RETRY_DELAY = 5;
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
 
     /**
      * Init bootstrap
@@ -36,7 +50,10 @@ public class NettyClient {
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
-                        ch.pipeline().addLast(new NettyClientHandler());
+                        ch.pipeline()
+                                .addLast(new LineBasedFrameDecoder(1024))
+                                .addLast(new StringDecoder())
+                                .addLast(applicationContext.getBean(NettyClientHandler.class));
                     }
                 });
         doConnect();
@@ -44,10 +61,20 @@ public class NettyClient {
 
 
     public void doConnect() {
-        bootstrap.connect().addListener((ChannelFuture f) -> {
+        bootstrap.connect("127.0.0.1", 8883).addListener((ChannelFuture f) -> {
             if (!f.isSuccess()) {
                 f.channel().eventLoop().schedule(() -> doConnect(), NEXT_RETRY_DELAY, TimeUnit.SECONDS);
             }
         });
+    }
+
+    public void write(ByteBuf byteBuf) {
+        if (channel != null) {
+            channel.writeAndFlush(byteBuf);
+        }
+    }
+
+    public static void main(String[] args) {
+        new NettyClient().doOpen();
     }
 }
